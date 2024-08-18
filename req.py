@@ -108,7 +108,8 @@ def store_menu(current_session):
                     game_selected = select_game(game_list)
                     current_session.add_to_wishlist(game_selected)
                 case 2:
-                    pass
+                    game_selected = select_game(game_list)
+                    current_session.buy_game(game_selected)
                 case 3:
                     break
                 case _:
@@ -116,18 +117,7 @@ def store_menu(current_session):
         except ValueError:
                 print(f"Enter a valid option")
         except KeyError as e:
-                print(f"{e}")
-
-
-# def add_to_wishlist(game_selected, current_session):
-#     query = "INSERT INTO `wishlist`(`juego`, `jugador`) VALUES (%s, %s)"
-#     try:
-#         cursor.execute(query, (game_selected.game_id, current_session.id))
-#         conexion.commit()
-#         print(f"{game_selected.game_name} added to wishlist")
-#         pause()
-#     except Exception as e:
-#         print(f"An error occured: {e}")         
+                print(f"{e}")     
 
 def select_game(game_list):
     clear_terminal()
@@ -154,22 +144,12 @@ def sign_up(user, password):
         print(f"Account created successfully!")
         pause()
     except Exception as e:
-        print(f"An error occured: {e}") 
-
-def crear_tabla():
- crear_tabla = """
- CREATE TABLE IF NOT EXISTS cuentas (
-     id INT AUTO_INCREMENT PRIMARY KEY,
-     nombre VARCHAR(100),
-     info VARCHAR(100),
-     contraseña VARCHAR(50)
- )
- """
- cursor.execute(crear_tabla)
+        print(f"An error occured: {e}")
+        pause() 
 
 def consulta_login(usuario, contraseña):
-    buscar_acc = f"SELECT * FROM `cuentas` WHERE nombre = '{usuario}' AND contraseña = '{contraseña}'"
-    cursor.execute(buscar_acc)
+    buscar_acc = f"SELECT * FROM `cuentas` WHERE nombre = %s AND contraseña = %s"
+    cursor.execute(buscar_acc, (usuario, contraseña))
     datos = cursor.fetchone()
     if datos:
         identificador, nombre_obtenido, info_obtenida, contra_obtenida = datos
@@ -185,18 +165,93 @@ class Sesion:
         self.nickname = nickname
         self.info = info
         self.password = password
+        self.library = Library(self.id)
 
     def add_to_wishlist(self, game_selected):
-        query = "INSERT INTO `wishlist`(`juego`, `jugador`) VALUES (%s, %s)"
-        try:
-            cursor.execute(query, (game_selected.game_id, self.id))
-            conexion.commit()
-            print(f"{game_selected.game_name} added to {self.nickname}'s wishlist")
+        check = "SELECT COUNT(*) FROM wishlist WHERE juego = %s AND jugador = %s"
+        cursor.execute(check, (game_selected.game_id, self.id))
+        result = cursor.fetchone()
+        if result[0] > 0:
+            print(f"{game_selected.game_name} is already added to {self.nickname}'s wishlist")
             pause()
-        except Exception as e:
-            print(f"An error occured: {e}")
-            pause()      
+        else:
+            query = "INSERT INTO `wishlist`(`juego`, `jugador`) VALUES (%s, %s)"
+            try:
+                cursor.execute(query, (game_selected.game_id, self.id))
+                conexion.commit()
+                print(f"{game_selected.game_name} added to {self.nickname}'s wishlist")
+                pause()
+            except Exception as e:
+                print(f"An error occured: {e}")
+                pause()      
    
+    def buy_game(self, game_selected):
+        purchase = Purchase(self.id, game_selected.game_id, game_selected.game_price, game_selected.game_name)
+        purchase.record_purchase()
+        self.library.add_game(game_selected)
+
+class Purchase:
+    def __init__(self, user_id, game_id, game_price, game_name):
+        self.user_id = user_id
+        self.game_id = game_id
+        self.game_price = game_price
+        self.game_name = game_name
+
+    def record_purchase(self):
+        check = "SELECT COUNT(*) from purchases WHERE user_id = %s AND game_id = %s"
+        cursor.execute(check, (self.user_id, self.game_id))
+        result = cursor.fetchone()
+        if result[0] > 0:
+            print(f"{self.game_name} has been already purchased")
+            pause()
+        else:
+            query = "INSERT INTO purchases (game_id, user_id, price) VALUES (%s, %s, %s)"
+            try:
+                cursor.execute(query, (self.game_id, self.user_id, self.game_price))
+                conexion.commit()
+                print(f"{self.game_name} purchased successfully!")
+            except Exception as e:
+                print(f"An error occurred: {e}")
+                pause()
+
+class Library:
+    def __init__(self, user_id):
+        self.user_id = user_id
+        self.games = self.fetch_games_from_db() #No usado
+
+    def fetch_games_from_db(self): #No usado
+        query = "SELECT game_id FROM library WHERE user_id = %s"
+        cursor.execute(query, (self.user_id,))
+        return cursor.fetchall()
+
+    def add_game(self, game):
+        check = "SELECT COUNT(*) from library WHERE user_id = %s AND game_id = %s"
+        cursor.execute(check, (self.user_id, game.game_id))
+        result = cursor.fetchone()
+        if result[0] > 0:
+            print(f"{game.game_name} has been already added to the library")
+            pause()
+        else:
+            query = "INSERT INTO library (game_id, user_id) VALUES (%s, %s)"
+            try:
+                cursor.execute(query, (game.game_id, self.user_id))
+                conexion.commit()
+                print(f"{game.game_name} added to the library.")
+                pause()
+            except Exception as e:
+                print(f"An error occurred: {e}")
+                pause()
+
+    def remove_game(self, game_id): #No usado
+        query = "DELETE FROM library WHERE user_id = %s AND game_id = %s"
+        try:
+            cursor.execute(query, (self.user_id, game_id))
+            conexion.commit()
+            print(f"Game with ID {game_id} removed from the library.")
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            pause()
+
 
 class Game:
     def __init__(self, game_name, game_size, game_price, game_info, game_id):
@@ -219,8 +274,3 @@ def separador():
     print(f"---------------------")
 
 main()
-
-#if cuenta:
-#    print(f"Sesión iniciada correctamente")
-#    print(f"Usuario: {cuenta.nombre}")
-#    print(f"Datos: {cuenta.info}")
