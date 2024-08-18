@@ -66,7 +66,7 @@ def logged_in_menu(current_session):
                 case 1:
                   store_menu(current_session)  
                 case 2:
-                    pass
+                    library_menu(current_session)
                 case 3:
                     pass
                 case 4:
@@ -74,12 +74,21 @@ def logged_in_menu(current_session):
                 case 5:
                     break
                 case _:
-                    raise KeyError(f"There's no such option")
+                    print(f"There's no such option")
         except ValueError:
             print(f"Enter a valid option")
         except KeyError as e:
             print(f"{e}")
-    
+
+def library_menu(current_session):
+    clear_terminal()
+    while True:
+        try:
+            current_session.go_to_library()
+
+        except Exception as e:
+            print(f"{e}")
+
 def store_menu(current_session):
     while True:
         try:
@@ -113,7 +122,7 @@ def store_menu(current_session):
                 case 3:
                     break
                 case _:
-                    raise KeyError(f"There's no such option")
+                    print(f"There's no such option")
         except ValueError:
                 print(f"Enter a valid option")
         except KeyError as e:
@@ -148,7 +157,7 @@ def sign_up(user, password):
         pause() 
 
 def consulta_login(usuario, contraseña):
-    buscar_acc = f"SELECT * FROM `cuentas` WHERE nombre = %s AND contraseña = %s"
+    buscar_acc = "SELECT * FROM `cuentas` WHERE nombre = %s AND contraseña = %s"
     cursor.execute(buscar_acc, (usuario, contraseña))
     datos = cursor.fetchone()
     if datos:
@@ -185,6 +194,10 @@ class Sesion:
                 print(f"An error occured: {e}")
                 pause()      
    
+    def go_to_library(self):
+        print(f"{self.nickname}' library: ")
+        self.library.show_library()
+
     def buy_game(self, game_selected):
         purchase = Purchase(self.id, game_selected.game_id, game_selected.game_price, game_selected.game_name)
         purchase.record_purchase()
@@ -210,6 +223,7 @@ class Purchase:
                 cursor.execute(query, (self.game_id, self.user_id, self.game_price))
                 conexion.commit()
                 print(f"{self.game_name} purchased successfully!")
+                pause()
             except Exception as e:
                 print(f"An error occurred: {e}")
                 pause()
@@ -217,12 +231,25 @@ class Purchase:
 class Library:
     def __init__(self, user_id):
         self.user_id = user_id
-        self.games = self.fetch_games_from_db() #No usado
+        self.games = self.fetch_games_from_db() #No
 
     def fetch_games_from_db(self): #No usado
         query = "SELECT game_id FROM library WHERE user_id = %s"
         cursor.execute(query, (self.user_id,))
         return cursor.fetchall()
+    
+    def show_library(self):
+        query = "SELECT store.game_name, store.game_size, store.game_id FROM library JOIN store ON library.game_id = store.game_id WHERE user_id = %s"
+        cursor.execute(query, (self.user_id,))
+        library = cursor.fetchall()
+        if library:
+            for game in library:
+                game_name, game_size, game_id = game
+                print(f"{game_name}")
+                print(f"size: {game_size}")
+        else:
+            print(f"Your library is empty :c")
+        pause()
 
     def add_game(self, game):
         check = "SELECT COUNT(*) from library WHERE user_id = %s AND game_id = %s"
