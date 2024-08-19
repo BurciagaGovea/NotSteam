@@ -56,11 +56,10 @@ def logged_in_menu(current_session):
             print(f"|----------          ---------|")
             print(f"| Store                      1|")
             print(f"| Library                    2|")
-            print(f"| Friends                    3|")
-            print(f"| Account settings           4|")
-            print(f"| Exit                       5|")
+            print(f"| Account settings           3|")
+            print(f"| Exit                       4|")
             print(f"|----------          ---------|")
-            action = int(input(f": "))
+            action = get_in()
 
             match action:
                 case 1:
@@ -70,21 +69,50 @@ def logged_in_menu(current_session):
                 case 3:
                     pass
                 case 4:
+                    break
+                case _:
+                    print(f"There's no such option")
+
+        except KeyError as e:
+            print(f"{e}")
+
+def library_menu(current_session):
+    while True:
+        try:
+            clear_terminal()
+            games = current_session.go_to_library()
+            
+            print(f"         Watcha wanna do?")
+            print(f"|----------          ---------|")
+            print(f"| Play                       1|")
+            print(f"| Remove game                2|")
+            print(f"| Add from purchases         3|")
+            print(f"| View game                  4|")
+            print(f"| Return                     5|")
+            print(f"|----------          ---------|")
+
+            action = get_in()
+            match action:
+                case 1: #Play
+                    game_selected = select_game(games)
+                    current_session.play_game(game_selected)
+                case 2: #Remove
+                    game_selected = select_game(games)
+                    current_session.remove_from_library(game_selected.game_id)
+                    print(f"{game_selected.game_name} removed successfully!")
+                case 3: #Add from purchases
+                    games_but_libray = current_session.check_purchases_but_library()
+                    if games_but_libray:
+                        game_selected = select_game(games_but_libray)
+                        current_session.add_to_library(game_selected)
+                    else:
+                        print(f"There're no games to add from purchases :c")
+                case 4: #View game
                     pass
                 case 5:
                     break
                 case _:
                     print(f"There's no such option")
-        except ValueError:
-            print(f"Enter a valid option")
-        except KeyError as e:
-            print(f"{e}")
-
-def library_menu(current_session):
-    clear_terminal()
-    while True:
-        try:
-            current_session.go_to_library()
 
         except Exception as e:
             print(f"{e}")
@@ -93,17 +121,15 @@ def store_menu(current_session):
     while True:
         try:
             clear_terminal()
-            game_list = []
             query = "SELECT * FROM `store`"
             cursor.execute(query)
-            games = cursor.fetchall()   
+            games = cursor.fetchall()
+            game_list = create_game_list(games)   
             print(f"Available games: ")
-            for i in games:
+            for game in game_list:
                 separador()
-                game_name, game_size, game_price, game_info, game_id = i
-                game_in_store = Game(game_name, game_size, game_price, game_info, game_id)
-                game_in_store.show_in_store()
-                game_list.append(game_in_store)
+                game.show_in_store()
+
             print(f"         Watcha wanna do?")
             print(f"|----------          ---------|")
             print(f"| Add to wishlist            1|")
@@ -111,7 +137,7 @@ def store_menu(current_session):
             print(f"| Return                     3|")
             print(f"|----------          ---------|")
   
-            action = int(input(f": "))
+            action = get_in()
             match action:
                 case 1:
                     game_selected = select_game(game_list)
@@ -123,9 +149,8 @@ def store_menu(current_session):
                     break
                 case _:
                     print(f"There's no such option")
-        except ValueError:
-                print(f"Enter a valid option")
-        except KeyError as e:
+        
+        except Exception as e:
                 print(f"{e}")     
 
 def select_game(game_list):
@@ -134,19 +159,18 @@ def select_game(game_list):
     for idx, game in enumerate(game_list):
         print(f"| {game.game_name} - {idx}|")
         print(f"|----------          ---------|")
-    game_index = int(input(f": "))
+    game_index = get_in()
     game_selected = game_list[game_index]
     return game_selected
 
 def ask_user_pass():
     clear_terminal()
-    user = str(input(f"Enter your username: "))
-    password = str(input(f"Enter your password: "))
+    user = (input(f"Enter your username: "))
+    password = (input(f"Enter your password: "))
     return user, password
 
-def sign_up(user, password):
-    
-    crear_acc = "INSERT INTO `cuentas` (`nombre`, `contraseña`) VALUES (%s, %s)"
+def sign_up(user, password): 
+    crear_acc = "INSERT INTO `cuentas` (`name`, `password`) VALUES (%s, %s)"
     try:
         cursor.execute(crear_acc, (user, password))
         conexion.commit()
@@ -156,12 +180,12 @@ def sign_up(user, password):
         print(f"An error occured: {e}")
         pause() 
 
-def consulta_login(usuario, contraseña):
-    buscar_acc = "SELECT * FROM `cuentas` WHERE nombre = %s AND contraseña = %s"
-    cursor.execute(buscar_acc, (usuario, contraseña))
-    datos = cursor.fetchone()
-    if datos:
-        identificador, nombre_obtenido, info_obtenida, contra_obtenida = datos
+def consulta_login(user, password):
+    search_acc = "SELECT * FROM `cuentas` WHERE name = %s AND password = %s"
+    cursor.execute(search_acc, (user, password))
+    data = cursor.fetchone()
+    if data:
+        identificador, nombre_obtenido, info_obtenida, contra_obtenida = data
         sesion_iniciado = Sesion(identificador, nombre_obtenido, info_obtenida, contra_obtenida)
         return sesion_iniciado
     else:
@@ -196,12 +220,27 @@ class Sesion:
    
     def go_to_library(self):
         print(f"{self.nickname}' library: ")
-        self.library.show_library()
+        game_list = self.library.show_library()
+        return game_list
 
     def buy_game(self, game_selected):
         purchase = Purchase(self.id, game_selected.game_id, game_selected.game_price, game_selected.game_name)
         purchase.record_purchase()
         self.library.add_game(game_selected)
+
+    def play_game(self, game_selected):
+        print(f"You played {game_selected.game_name}!")
+        pause()
+    
+    def remove_from_library(self, game_id):
+        self.library.remove_game(game_id)
+
+    def check_purchases_but_library(self):
+        games = self.library.not_in_library()
+        return games
+    
+    def add_to_library(self, game):
+        self.library.add_game(game)
 
 class Purchase:
     def __init__(self, user_id, game_id, game_price, game_name):
@@ -228,6 +267,25 @@ class Purchase:
                 print(f"An error occurred: {e}")
                 pause()
 
+def get_in():
+    while True:
+        try:
+            action = int(input(f": "))
+            return action
+        except ValueError:
+            print(f"Enter a valid option")
+        except Exception as e:
+            print(f"Error: {e}")
+
+
+def create_game_list(games):
+    game_list = []
+    for game in games:                
+        game_name, game_size, game_price, game_info, game_id = game
+        game_created = Game(game_name, game_size, game_price, game_info, game_id)
+        game_list.append(game_created)
+    return game_list
+
 class Library:
     def __init__(self, user_id):
         self.user_id = user_id
@@ -239,17 +297,27 @@ class Library:
         return cursor.fetchall()
     
     def show_library(self):
-        query = "SELECT store.game_name, store.game_size, store.game_id FROM library JOIN store ON library.game_id = store.game_id WHERE user_id = %s"
+        query = "SELECT store.* FROM library JOIN store ON library.game_id = store.game_id WHERE user_id = %s"
         cursor.execute(query, (self.user_id,))
         library = cursor.fetchall()
+        
         if library:
-            for game in library:
-                game_name, game_size, game_id = game
-                print(f"{game_name}")
-                print(f"size: {game_size}")
+            game_list = create_game_list(library)
+            for game in game_list:
+                game.show_in_library()
+            return game_list
+        
         else:
             print(f"Your library is empty :c")
         pause()
+
+    def not_in_library(self):
+        query = "SELECT store.* FROM purchases JOIN store ON purchases.game_id = store.game_id LEFT JOIN library ON purchases.game_id = library.game_id and purchases.user_id = library.user_id WHERE purchases.user_id = %s AND library.game_id IS NULL"
+        cursor.execute(query, (self.user_id,))
+        games_not_in_libray = cursor.fetchall()
+        
+        game_list = create_game_list(games_not_in_libray)
+        return game_list
 
     def add_game(self, game):
         check = "SELECT COUNT(*) from library WHERE user_id = %s AND game_id = %s"
@@ -269,7 +337,7 @@ class Library:
                 print(f"An error occurred: {e}")
                 pause()
 
-    def remove_game(self, game_id): #No usado
+    def remove_game(self, game_id):
         query = "DELETE FROM library WHERE user_id = %s AND game_id = %s"
         try:
             cursor.execute(query, (self.user_id, game_id))
@@ -291,6 +359,15 @@ class Game:
     def show_in_store(self):
         print(f"{self.game_name} | size: {self.game_size} gb | price {self.game_price} USD |")
         print(f"Info: {self.game_info}")
+
+    def show_in_library(self):
+        print(f"{self.game_name}")
+        print(f"size: {self.game_size}")
+
+    def show_in_purchases(self):
+        print(f"{self.game_name}")
+        print(f"size: {self.game_size}")
+
 
 def login():
     user, password = ask_user_pass()
