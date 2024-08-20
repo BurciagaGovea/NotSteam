@@ -56,8 +56,7 @@ def logged_in_menu(current_session):
             print(f"|----------          ---------|")
             print(f"| Store                      1|")
             print(f"| Library                    2|")
-            print(f"| Account settings           3|")
-            print(f"| Exit                       4|")
+            print(f"| Exit                       3|")
             print(f"|----------          ---------|")
             action = get_in()
 
@@ -67,8 +66,6 @@ def logged_in_menu(current_session):
                 case 2:
                     library_menu(current_session)
                 case 3:
-                    pass
-                case 4:
                     break
                 case _:
                     print(f"There's no such option")
@@ -81,6 +78,10 @@ def library_menu(current_session):
         try:
             clear_terminal()
             games = current_session.go_to_library()
+            if games:
+                have_games = True
+            else:
+                have_games = False
             
             print(f"         Watcha wanna do?")
             print(f"|----------          ---------|")
@@ -94,12 +95,20 @@ def library_menu(current_session):
             action = get_in()
             match action:
                 case 1: #Play
-                    game_selected = select_game(games)
-                    current_session.play_game(game_selected)
+                    if have_games:
+                        game_selected = select_game(games)
+                        current_session.play_game(game_selected)
+                    else:
+                        print(f"You can't play if u don't have games :c")
+                        pause()
                 case 2: #Remove
-                    game_selected = select_game(games)
-                    current_session.remove_from_library(game_selected.game_id)
-                    print(f"{game_selected.game_name} removed successfully!")
+                    if have_games:
+                        game_selected = select_game(games)
+                        current_session.remove_from_library(game_selected.game_id)
+                        print(f"{game_selected.game_name} removed successfully!")
+                    else:
+                        print(f"You can't remove games from the library since you have no games :c")
+                        pause()
                 case 3: #Add from purchases
                     games_but_libray = current_session.check_purchases_but_library()
                     if games_but_libray:
@@ -107,8 +116,15 @@ def library_menu(current_session):
                         current_session.add_to_library(game_selected)
                     else:
                         print(f"There're no games to add from purchases :c")
+                        pause()
                 case 4: #View game
-                    pass
+                    if have_games:
+                        game_selected = select_game(games)
+                        game_selected.show_in_library()
+                        pause()
+                    else:
+                        print(f"You have no games")
+                        pause()
                 case 5:
                     break
                 case _:
@@ -134,7 +150,8 @@ def store_menu(current_session):
             print(f"|----------          ---------|")
             print(f"| Add to wishlist            1|")
             print(f"| Buy a game                 2|")
-            print(f"| Return                     3|")
+            print(f"| Show wishlist              3|")
+            print(f"| Return                     4|")
             print(f"|----------          ---------|")
   
             action = get_in()
@@ -146,6 +163,11 @@ def store_menu(current_session):
                     game_selected = select_game(game_list)
                     current_session.buy_game(game_selected)
                 case 3:
+                    current_session.show_wishlist()
+                    go_out = input(f"Enter anything to return")
+                    if go_out:
+                        continue
+                case 4:
                     break
                 case _:
                     print(f"There's no such option")
@@ -218,6 +240,21 @@ class Sesion:
                 print(f"An error occured: {e}")
                 pause()      
    
+    def show_wishlist(self):
+        query = "SELECT store.* FROM wishlist JOIN store ON wishlist.juego = store.game_id WHERE wishlist.jugador = %s"
+        cursor.execute(query, (self.id,))
+        wishlist = cursor.fetchall()
+        print(f"{self.nickname}'s wishlist: ")
+        if wishlist:
+            game_list = create_game_list(wishlist)
+            for game in game_list:
+                separador()
+                game.show_in_store()
+        else:
+            separador()
+            print(f"You have no games in your wishlist, go add some c:")
+        pause()
+
     def go_to_library(self):
         print(f"{self.nickname}' library: ")
         game_list = self.library.show_library()
@@ -289,13 +326,7 @@ def create_game_list(games):
 class Library:
     def __init__(self, user_id):
         self.user_id = user_id
-        self.games = self.fetch_games_from_db() #No
 
-    def fetch_games_from_db(self): #No usado
-        query = "SELECT game_id FROM library WHERE user_id = %s"
-        cursor.execute(query, (self.user_id,))
-        return cursor.fetchall()
-    
     def show_library(self):
         query = "SELECT store.* FROM library JOIN store ON library.game_id = store.game_id WHERE user_id = %s"
         cursor.execute(query, (self.user_id,))
@@ -361,12 +392,15 @@ class Game:
         print(f"Info: {self.game_info}")
 
     def show_in_library(self):
+        separador()
         print(f"{self.game_name}")
         print(f"size: {self.game_size}")
+        
 
     def show_in_purchases(self):
         print(f"{self.game_name}")
         print(f"size: {self.game_size}")
+        pause()
 
 
 def login():
